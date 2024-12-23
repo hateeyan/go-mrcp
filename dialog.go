@@ -16,13 +16,21 @@ const (
 
 	ConnectionNew      = "new"
 	ConnectionExisting = "existing"
+)
 
-	ResourceSpeechsynth = "speechsynth"
-	ResourceSpeechrecog = "speechrecog"
+type Resource string
 
-	DirectionSendonly = "sendonly"
-	DirectionRecvonly = "recvonly"
-	DirectionSendrecv = "sendrecv"
+const (
+	ResourceSpeechsynth Resource = "speechsynth"
+	ResourceSpeechrecog Resource = "speechrecog"
+)
+
+type Direction string
+
+const (
+	DirectionSendonly Direction = "sendonly"
+	DirectionRecvonly Direction = "recvonly"
+	DirectionSendrecv Direction = "sendrecv"
 )
 
 type ControlDesc struct {
@@ -33,7 +41,7 @@ type ControlDesc struct {
 	SetupType      string
 	ConnectionType string
 	Channel        string
-	Resource       string
+	Resource       Resource
 }
 
 var codecsMap = map[int]CodecDesc{
@@ -49,11 +57,26 @@ type CodecDesc struct {
 	FormatParams map[string]string
 }
 
+func (c CodecDesc) equal(cd CodecDesc) bool {
+	return c.PayloadType == cd.PayloadType && c.Name == cd.Name && c.SampleRate == cd.SampleRate
+}
+
+func negotiateCodec(lcodecs, rcodecs []CodecDesc) (CodecDesc, bool) {
+	for _, rcodec := range rcodecs {
+		for _, lcodec := range lcodecs {
+			if rcodec.equal(lcodec) {
+				return rcodec, true
+			}
+		}
+	}
+	return CodecDesc{}, false
+}
+
 type MediaDesc struct {
 	// Host The connection-address in the SDP Connection field
 	Host      string
 	Port      int
-	Direction string
+	Direction Direction
 	Ptime     int
 	Codecs    []CodecDesc
 }
@@ -122,8 +145,8 @@ func parseSDP(raw []byte) (Desc, error) {
 					// TODO: parse rtpmap
 				case "fmtp":
 					// TODO: parse fmtp
-				case DirectionSendonly, DirectionRecvonly, DirectionSendrecv:
-					desc.AudioDesc.Direction = a.Key
+				case string(DirectionSendonly), string(DirectionRecvonly), string(DirectionSendrecv):
+					desc.AudioDesc.Direction = Direction(a.Key)
 				case "ptime":
 					got, err := strconv.Atoi(a.Value)
 					if err != nil {
@@ -167,7 +190,7 @@ func (d Desc) generateSDP() ([]byte, error) {
 				Attributes: []sdp.Attribute{
 					{Key: "setup", Value: d.ControlDesc.SetupType},
 					{Key: "connection", Value: d.ControlDesc.ConnectionType},
-					{Key: "resource", Value: d.ControlDesc.Resource},
+					{Key: "resource", Value: string(d.ControlDesc.Resource)},
 					{Key: "cmid", Value: "1"},
 				},
 			},
@@ -178,7 +201,7 @@ func (d Desc) generateSDP() ([]byte, error) {
 					Protos: []string{"RTP", "AVP"},
 				},
 				Attributes: []sdp.Attribute{
-					{Key: d.AudioDesc.Direction},
+					{Key: string(d.AudioDesc.Direction)},
 					{Key: "ptime", Value: strconv.Itoa(d.AudioDesc.Ptime)},
 					{Key: "mid", Value: "1"},
 				},

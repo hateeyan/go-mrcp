@@ -22,6 +22,12 @@ const (
 	MethodEndPhraseEnrollment   = "END-PHRASE-ENROLLMENT"
 	MethodModifyPhrase          = "MODIFY-PHRASE"
 	MethodDeletePhrase          = "DELETE-PHRASE"
+	MethodSpeak                 = "SPEAK"
+	MethodPause                 = "PAUSE"
+	MethodResume                = "RESUME"
+	MethodBargeInOccurred       = "BARGE-IN-OCCURRED"
+	MethodControl               = "CONTROL"
+	MethodDefineLexicon         = "DEFINE-LEXICON"
 )
 
 const (
@@ -57,7 +63,8 @@ type Message struct {
 
 func NewMessage(method, channelId string) Message {
 	return Message{
-		name: method,
+		name:      method,
+		requestId: 1,
 		headers: map[string]string{
 			"Channel-Identifier": channelId,
 		},
@@ -193,6 +200,7 @@ func (m *Message) GetName() string               { return m.name }
 func (m *Message) GetMessageType() MessageType   { return m.messageType }
 func (m *Message) GetRequestId() uint32          { return m.requestId }
 func (m *Message) SetRequestId(requestId uint32) { m.requestId = requestId }
+func (m *Message) GetRequestState() string       { return m.requestState }
 func (m *Message) GetHeader(key string) string   { return m.headers[key] }
 func (m *Message) SetHeader(k, v string)         { m.headers[k] = v }
 func (m *Message) GetBody() []byte               { return m.body }

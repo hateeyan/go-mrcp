@@ -11,29 +11,45 @@ import (
 
 type ChannelHandler struct {
 	// OnMessage mrcp response
-	OnMessage func(msg Message)
+	OnMessage func(c *Channel, msg Message)
 }
 
 type Channel struct {
-	id      string
-	conn    net.Conn
-	handler ChannelHandler
-	logger  *slog.Logger
+	id        string
+	requestId uint32
+	conn      net.Conn
+	handler   ChannelHandler
+	logger    *slog.Logger
 }
 
-func (d *DialogClient) DialMrcpServer(handler ChannelHandler) (*Channel, error) {
+func (d *DialogClient) dialMrcpServer(handler ChannelHandler) error {
+	if d.channel != nil {
+		return nil
+	}
+
 	conn, err := net.Dial("tcp", d.rdesc.ControlDesc.Host+":"+strconv.Itoa(d.rdesc.ControlDesc.Port))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	c := &Channel{
+	d.channel = &Channel{
 		id:      d.rdesc.ControlDesc.Channel,
 		conn:    conn,
 		handler: handler,
-		logger:  d.c.Logger,
+		logger:  d.sc.Logger,
 	}
-	go c.waitResponseLoop()
-	return c, nil
+	go d.channel.startReadResponse()
+	return nil
+}
+
+func (c *Channel) NewMessage(method string) Message {
+	c.requestId++
+	return Message{
+		name:      method,
+		requestId: c.requestId,
+		headers: map[string]string{
+			"Channel-Identifier": c.id,
+		},
+	}
 }
 
 func (c *Channel) SendMrcpMessage(msg Message) error {
@@ -41,7 +57,7 @@ func (c *Channel) SendMrcpMessage(msg Message) error {
 	return err
 }
 
-func (c *Channel) waitResponseLoop() {
+func (c *Channel) startReadResponse() {
 	r := bufio.NewReader(c.conn)
 	buf := make([]byte, 1024)
 	for {
@@ -85,10 +101,21 @@ func (c *Channel) waitResponseLoop() {
 		}
 
 		if c.handler.OnMessage != nil {
-			c.handler.OnMessage(msg)
+			c.handler.OnMessage(c, msg)
 		}
 	}
-	_ = c.conn.Close()
 }
 
 func (c *Channel) GetChannelId() string { return c.id }
+
+func (c *Channel) Close() error {
+	if c == nil {
+		return nil
+	}
+	if c.conn != nil {
+		if err := c.conn.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}

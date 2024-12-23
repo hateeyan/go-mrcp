@@ -12,47 +12,60 @@ import (
 type DialogClient struct {
 	callId       string
 	ldesc, rdesc Desc
-	c            *SIPClient
+	sc           *SIPClient
+	channel      *Channel
+	media        *Media
 	session      *sipgo.DialogClientSession
 	ctx          context.Context
 	cancel       context.CancelFunc
-	done         chan struct{}
+	closed       bool
 	logger       *slog.Logger
 }
 
-func (c *SIPClient) newDialogClient() *DialogClient {
+func (c *SIPClient) newDialogClient(resource Resource) (*DialogClient, error) {
+	audioDesc := MediaDesc{
+		Host:   c.localHost,
+		Ptime:  20,
+		Codecs: c.AudioCodecs,
+	}
+	controlDesc := ControlDesc{
+		Host:           c.localHost,
+		Port:           9,
+		Proto:          ProtoTCP,
+		SetupType:      SetupActive,
+		ConnectionType: ConnectionNew,
+		Resource:       resource,
+	}
+
+	switch resource {
+	case ResourceSpeechrecog:
+		audioDesc.Direction = DirectionSendonly
+	case ResourceSpeechsynth:
+		audioDesc.Direction = DirectionRecvonly
+	default:
+		return nil, fmt.Errorf("unsupported resource type: %s", resource)
+	}
+
+	port, err := c.getPort()
+	if err != nil {
+		return nil, err
+	}
+	audioDesc.Port = int(port)
+
 	d := &DialogClient{
 		callId: pkg.RandString(10),
 		ldesc: Desc{
-			UserAgent: c.UserAgent,
-			Host:      c.localHost,
-			AudioDesc: MediaDesc{
-				Host:      c.localHost,
-				Port:      10000,
-				Direction: DirectionSendonly,
-				Ptime:     20,
-				Codecs: []CodecDesc{
-					{PayloadType: 0, Name: "PCMU", SampleRate: 8000},
-					{PayloadType: 8, Name: "PCMA", SampleRate: 8000},
-					{PayloadType: 101, Name: "telephone-event", SampleRate: 8000, FormatParams: map[string]string{"0-15": ""}},
-				},
-			},
-			ControlDesc: ControlDesc{
-				Host:           c.localHost,
-				Port:           9,
-				Proto:          "TCP/MRCPv2",
-				SetupType:      SetupActive,
-				ConnectionType: ConnectionNew,
-				Resource:       ResourceSpeechrecog,
-			},
+			UserAgent:   c.UserAgent,
+			Host:        c.localHost,
+			AudioDesc:   audioDesc,
+			ControlDesc: controlDesc,
 		},
-		c:      c,
-		done:   make(chan struct{}),
+		sc:     c,
 		logger: c.Logger,
 	}
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 	c.dialogs.Store(d.callId, d)
-	return d
+	return d, nil
 }
 
 func (d *DialogClient) invite(raddr string) error {
@@ -61,23 +74,25 @@ func (d *DialogClient) invite(raddr string) error {
 		return err
 	}
 
+	if d.channel == nil {
+		d.ldesc.ControlDesc.ConnectionType = ConnectionExisting
+	}
 	localSDP, err := d.ldesc.generateSDP()
 	if err != nil {
 		return err
 	}
 
 	recipient := sip.Uri{Host: rhost, Port: rport}
-	callIdHdr := sip.CallIDHeader(d.callId)
-	d.session, err = d.c.ua.Invite(
+	d.session, err = d.sc.ua.Invite(
 		d.ctx,
 		recipient,
 		localSDP,
 		&sip.FromHeader{
-			Address: d.c.ua.ContactHDR.Address,
+			Address: d.sc.ua.ContactHDR.Address,
 			Params:  sip.HeaderParams{"tag": pkg.RandString(5)},
 		},
 		&sip.ToHeader{Address: recipient},
-		&callIdHdr,
+		sip.NewHeader("Call-ID", d.callId),
 		sip.NewHeader("Content-Type", "application/sdp"),
 	)
 	if err != nil {
@@ -99,7 +114,11 @@ func (d *DialogClient) invite(raddr string) error {
 func (d *DialogClient) handleState(s sip.DialogState) {
 	switch s {
 	case sip.DialogStateEnded:
-		close(d.done)
+		// on receive BYE
+		if err := d.Close(); err != nil {
+			d.logger.Error("failed to close dialog client", "error", err)
+			return
+		}
 	}
 }
 
@@ -121,13 +140,23 @@ func (d *DialogClient) onResponse(res *sip.Response) error {
 	return nil
 }
 
+func (d *DialogClient) GetChannel() *Channel { return d.channel }
+
 func (d *DialogClient) Close() error {
+	if d.closed {
+		return nil
+	}
+	d.closed = true
+
 	d.cancel()
+	_ = d.media.Close()
+	_ = d.channel.Close()
 	if d.session.LoadState() == sip.DialogStateConfirmed {
 		if err := d.session.Bye(context.Background()); err != nil {
 			d.logger.Error("failed to send bye request", "error", err)
 		}
 	}
+	d.sc.freePort(uint16(d.ldesc.AudioDesc.Port))
 
 	return d.session.Close()
 }
