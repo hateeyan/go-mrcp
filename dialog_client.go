@@ -22,7 +22,7 @@ type DialogClient struct {
 	logger       *slog.Logger
 }
 
-func (c *SIPClient) newDialogClient(resource Resource) (*DialogClient, error) {
+func (c *SIPClient) newDialog(resource Resource) (*DialogClient, error) {
 	audioDesc := MediaDesc{
 		Host:   c.localHost,
 		Ptime:  20,
@@ -157,6 +157,7 @@ func (d *DialogClient) Close() error {
 		}
 	}
 	d.sc.freePort(uint16(d.ldesc.AudioDesc.Port))
+	d.sc.dialogs.Delete(d.callId)
 
 	return d.session.Close()
 }

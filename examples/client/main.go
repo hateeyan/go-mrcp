@@ -7,7 +7,6 @@ import (
 	"github.com/hateeyan/go-mrcp/pkg/pcm"
 	"math/rand"
 	"os"
-	"time"
 )
 
 var (
@@ -18,37 +17,50 @@ var (
 	timestamp = rand.Uint32()
 	ssrc      = rand.Uint32()
 	pt        uint8
+	responses = make(chan mrcp.Message, 1)
 )
 
 func recognize(dialog *mrcp.DialogClient) error {
+	channel := dialog.GetChannel()
+	msg := channel.NewMessage(mrcp.MethodDefineGrammar)
+	msg.SetHeader("Content-Id", "a4af7ee8-e6ff-4833-8037-5c0bc8b0b692")
+	msg.SetBody([]byte(`<?xml version="1.0" encoding="utf-8"?><grammar xmlns="http://www.w3.org/2001/06/grammar" xml:lang="en-US" version="1.0" root="service"><rule id="service"></rule></grammar>`), "application/srgs+xml")
+	if err := channel.SendMrcpMessage(msg); err != nil {
+		return err
+	}
+
+	// wait response
+	resp := <-responses
+	if resp.GetStatusCode() != 200 {
+		return fmt.Errorf("failed to define grammar: %v", resp.GetStatusCode())
+	}
+
 	// generate RECOGNIZE request
-	msg := dialog.GetChannel().NewMessage(mrcp.MethodRecognize)
+	msg = channel.NewMessage(mrcp.MethodRecognize)
 	msg.SetHeader("Recognition-Timeout", "40000")
 	msg.SetHeader("No-Input-Timeout", "7000")
 	msg.SetHeader("Speech-Incomplete-Timeout", "100")
 	msg.SetHeader("Speech-Complete-Timeout", "100")
 	msg.SetBody([]byte("session:a4af7ee8-e6ff-4833-8037-5c0bc8b0b692"), "text/uri-list")
 	// send RECOGNIZE request
-	if err := dialog.GetChannel().SendMrcpMessage(msg); err != nil {
+	if err := channel.SendMrcpMessage(msg); err != nil {
 		return err
 	}
-	return nil
-}
 
-func speak(dialog *mrcp.DialogClient) error {
-	// generate SPEAK request
-	msg := dialog.GetChannel().NewMessage(mrcp.MethodSpeak)
-	msg.SetHeader("Voice-Name", "someone")
-	msg.SetBody([]byte(`<?xml version="1.0"?><speak version="1.0" xml:lang="en-Us" xmlns="http://www.w3.org/2001/10/synthesis">Welcome to go-mrcp</speak>`), "application/ssml+xml")
-	// send SPEAK request
-	if err := dialog.GetChannel().SendMrcpMessage(msg); err != nil {
-		return err
+	// wait response
+	resp = <-responses
+	if resp.GetStatusCode() != 200 {
+		return fmt.Errorf("failed to start recognize: %v", resp.GetStatusCode())
 	}
+
+	// wait result
+	resp = <-responses
+	fmt.Printf("completion-cause: %d, body: %s\n", resp.GetCompletionCause(), string(resp.GetBody()))
 	return nil
 }
 
 func main() {
-	sipClient := &mrcp.SIPClient{
+	sipClient := mrcp.SIPClient{
 		LocalAddr: "10.9.232.246:5020",
 	}
 
@@ -64,9 +76,8 @@ func main() {
 		"10.9.232.246:8060",
 		mrcp.ResourceSpeechrecog,
 		mrcp.MediaHandler{
-			StartTx:        startTx,
-			ReadRTPPacket:  readRTPPacket,
-			WriteRTPPacket: writeRTPPacket,
+			StartTx:       startTx,
+			ReadRTPPacket: readRTPPacket,
 		},
 		mrcp.ChannelHandler{
 			OnMessage: onResponse,
@@ -88,12 +99,10 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-
-	time.Sleep(10 * time.Second)
 }
 
 func onResponse(c *mrcp.Channel, msg mrcp.Message) {
-	fmt.Println(msg.GetMessageType(), msg.GetName(), string(msg.GetBody()))
+	responses <- msg
 }
 
 func startTx(m *mrcp.Media, codec mrcp.CodecDesc) error {
@@ -130,9 +139,4 @@ func readRTPPacket(m *mrcp.Media) ([]byte, bool) {
 	}
 
 	return rtpData, true
-}
-
-func writeRTPPacket(m *mrcp.Media, rtp []byte) bool {
-	fmt.Println("received rtp packet:", len(rtp))
-	return true
 }

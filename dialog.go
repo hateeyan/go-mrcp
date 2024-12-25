@@ -117,9 +117,18 @@ func parseSDP(raw []byte) (Desc, error) {
 			}
 			desc.ControlDesc.Port = md.MediaName.Port.Value
 			desc.ControlDesc.Proto = strings.Join(md.MediaName.Protos, "/")
-			desc.ControlDesc.SetupType, _ = md.Attribute("setup")
-			desc.ControlDesc.ConnectionType, _ = md.Attribute("connection")
-			desc.ControlDesc.Channel, _ = md.Attribute("channel")
+			for _, a := range md.Attributes {
+				switch a.Key {
+				case "setup":
+					desc.ControlDesc.SetupType = a.Value
+				case "connection":
+					desc.ControlDesc.ConnectionType = a.Value
+				case "channel":
+					desc.ControlDesc.Channel = a.Value
+				case "resource":
+					desc.ControlDesc.Resource = Resource(a.Value)
+				}
+			}
 		} else if md.MediaName.Media == "audio" {
 			desc.AudioDesc.Host = sd.ConnectionInformation.Address.Address
 			if md.ConnectionInformation != nil {

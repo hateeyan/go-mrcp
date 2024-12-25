@@ -3,6 +3,7 @@ package mrcp
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -63,7 +64,7 @@ func (c *Channel) startReadResponse() {
 	for {
 		peek, err := r.Peek(20)
 		if err != nil {
-			if err != io.EOF {
+			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
 				c.logger.Error("unable to read from mrcp server", "error", err)
 			}
 			break

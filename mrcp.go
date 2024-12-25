@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -31,14 +32,48 @@ const (
 )
 
 const (
-	HeaderContentType   = "Content-Type"
-	HeaderContentLength = "Content-Length"
+	HeaderContentType     = "Content-Type"
+	HeaderContentLength   = "Content-Length"
+	HeaderCompletionCause = "Completion-Cause"
 )
 
 const (
 	RequestStateComplete   = "COMPLETE"
 	RequestStateInProgress = "IN-PROGRESS"
 	RequestStatePending    = "PENDING"
+)
+
+type CompletionCause int
+
+const (
+	SynthCompletionCauseNormal CompletionCause = iota
+	SynthCompletionCauseBargeIn
+	SynthCompletionCauseParseFailure
+	SynthCompletionCauseUriFailure
+	SynthCompletionCauseError
+	SynthCompletionCauseLanguageUnsupported
+	SynthCompletionCauseLexiconLoadFailure
+	SynthCompletionCauseCancelled
+)
+
+const (
+	RecogCompletionCauseSuccess CompletionCause = iota
+	RecogCompletionCauseNoMatch
+	RecogCompletionCauseNoInputTimeout
+	RecogCompletionCauseHotWordMaxTime
+	RecogCompletionCauseGrammarLoadFailure
+	RecogCompletionCauseGrammarCompilationFailure
+	RecogCompletionCauseRecognizerError
+	RecogCompletionCauseSpeechTooEarly
+	RecogCompletionCauseSuccessMaxTime
+	RecogCompletionCauseUriFailure
+	RecogCompletionCauseLanguageUnsupported
+	RecogCompletionCauseCancelled
+	RecogCompletionCauseSemanticsFailure
+	RecogCompletionCausePartialMatch
+	RecogCompletionCausePartialMatchMaxTime
+	RecogCompletionCauseNoMatchMaxTime
+	RecogCompletionCauseGrammarDefinitionFailure
 )
 
 type MessageType uint8
@@ -196,11 +231,28 @@ func (m *Message) parseHeaders(r *bufio.Reader) error {
 	return nil
 }
 
+func (m *Message) GetCompletionCause() CompletionCause {
+	got := m.GetHeader(HeaderCompletionCause)
+	if got == "" {
+		return -1
+	}
+	i := strings.IndexByte(got, ' ')
+	if i == -1 {
+		return -1
+	}
+	cause, err := strconv.Atoi(got[:i])
+	if err != nil {
+		return -1
+	}
+	return CompletionCause(cause)
+}
+
 func (m *Message) GetName() string               { return m.name }
 func (m *Message) GetMessageType() MessageType   { return m.messageType }
 func (m *Message) GetRequestId() uint32          { return m.requestId }
 func (m *Message) SetRequestId(requestId uint32) { m.requestId = requestId }
 func (m *Message) GetRequestState() string       { return m.requestState }
+func (m *Message) GetStatusCode() int            { return m.statusCode }
 func (m *Message) GetHeader(key string) string   { return m.headers[key] }
 func (m *Message) SetHeader(k, v string)         { m.headers[k] = v }
 func (m *Message) GetBody() []byte               { return m.body }

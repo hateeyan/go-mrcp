@@ -174,3 +174,43 @@ func TestMessage_parseStartLine(t *testing.T) {
 		})
 	}
 }
+
+func TestMessage_GetCompletionCause(t *testing.T) {
+	type fields struct {
+		headers map[string]string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   CompletionCause
+	}{
+		{
+			name: "000",
+			fields: fields{
+				headers: map[string]string{
+					HeaderCompletionCause: "000 success",
+				},
+			},
+			want: 0,
+		},
+		{
+			name: "004",
+			fields: fields{
+				headers: map[string]string{
+					HeaderCompletionCause: "004 error",
+				},
+			},
+			want: 4,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &Message{
+				headers: tt.fields.headers,
+			}
+			if got := m.GetCompletionCause(); got != tt.want {
+				t.Errorf("GetCompletionCause() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

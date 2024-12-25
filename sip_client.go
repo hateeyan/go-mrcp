@@ -1,23 +1,12 @@
 package mrcp
 
 import (
-	"errors"
 	"github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 )
-
-var (
-	ErrNoFreePorts = errors.New("no free rtp ports")
-)
-
-var defaultAudioCodecs = []CodecDesc{
-	{PayloadType: 0, Name: "PCMU", SampleRate: 8000},
-	{PayloadType: 8, Name: "PCMA", SampleRate: 8000},
-	{PayloadType: 101, Name: "telephone-event", SampleRate: 8000, FormatParams: map[string]string{"0-15": ""}},
-}
 
 type SIPClient struct {
 	// LocalAddr local address
@@ -52,16 +41,16 @@ func (c *SIPClient) Run() error {
 		c.LocalAddr = "127.0.0.1:5060"
 	}
 	if c.UserAgent == "" {
-		c.UserAgent = "go-mrcp"
+		c.UserAgent = defaultUserAgent
 	}
 	if len(c.AudioCodecs) == 0 {
 		c.AudioCodecs = defaultAudioCodecs
 	}
 	if c.RtpPortMin == 0 {
-		c.RtpPortMin = 20000
+		c.RtpPortMin = defaultRtpPortMin
 	}
 	if c.RtpPortMax == 0 {
-		c.RtpPortMax = 40000
+		c.RtpPortMax = defaultRtpPortMax
 	}
 	c.nextPort = c.RtpPortMin
 	c.portsMax = c.RtpPortMax - c.RtpPortMin
@@ -101,7 +90,7 @@ func (c *SIPClient) Dial(
 	mediaHandler MediaHandler,
 	channelHandler ChannelHandler,
 ) (*DialogClient, error) {
-	dc, err := c.newDialogClient(resource)
+	dc, err := c.newDialog(resource)
 	if err != nil {
 		return nil, err
 	}
