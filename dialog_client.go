@@ -46,7 +46,7 @@ func (c *SIPClient) newDialog(resource Resource) (*DialogClient, error) {
 		return nil, fmt.Errorf("unsupported resource type: %s", resource)
 	}
 
-	port, err := c.getPort()
+	port, err := c.porter.get()
 	if err != nil {
 		return nil, err
 	}
@@ -74,9 +74,6 @@ func (d *DialogClient) invite(raddr string) error {
 		return err
 	}
 
-	if d.channel == nil {
-		d.ldesc.ControlDesc.ConnectionType = ConnectionExisting
-	}
 	localSDP, err := d.ldesc.generateSDP()
 	if err != nil {
 		return err
@@ -156,7 +153,7 @@ func (d *DialogClient) Close() error {
 			d.logger.Error("failed to send bye request", "error", err)
 		}
 	}
-	d.sc.freePort(uint16(d.ldesc.AudioDesc.Port))
+	d.sc.porter.free(uint16(d.ldesc.AudioDesc.Port))
 	d.sc.dialogs.Delete(d.callId)
 
 	return d.session.Close()

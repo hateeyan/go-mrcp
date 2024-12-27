@@ -22,7 +22,7 @@ var (
 
 func recognize(dialog *mrcp.DialogClient) error {
 	channel := dialog.GetChannel()
-	msg := channel.NewMessage(mrcp.MethodDefineGrammar)
+	msg := channel.NewRequest(mrcp.MethodDefineGrammar)
 	msg.SetHeader("Content-Id", "a4af7ee8-e6ff-4833-8037-5c0bc8b0b692")
 	msg.SetBody([]byte(`<?xml version="1.0" encoding="utf-8"?><grammar xmlns="http://www.w3.org/2001/06/grammar" xml:lang="en-US" version="1.0" root="service"><rule id="service"></rule></grammar>`), "application/srgs+xml")
 	if err := channel.SendMrcpMessage(msg); err != nil {
@@ -36,7 +36,7 @@ func recognize(dialog *mrcp.DialogClient) error {
 	}
 
 	// generate RECOGNIZE request
-	msg = channel.NewMessage(mrcp.MethodRecognize)
+	msg = channel.NewRequest(mrcp.MethodRecognize)
 	msg.SetHeader("Recognition-Timeout", "40000")
 	msg.SetHeader("No-Input-Timeout", "7000")
 	msg.SetHeader("Speech-Incomplete-Timeout", "100")
@@ -75,12 +75,12 @@ func main() {
 	dialog, err := sipClient.Dial(
 		"10.9.232.246:8060",
 		mrcp.ResourceSpeechrecog,
-		mrcp.MediaHandler{
-			StartTx:       startTx,
-			ReadRTPPacket: readRTPPacket,
+		mrcp.MediaHandlerFunc{
+			StartTxFunc:       startTx,
+			ReadRTPPacketFunc: readRTPPacket,
 		},
-		mrcp.ChannelHandler{
-			OnMessage: onResponse,
+		mrcp.ChannelHandlerFunc{
+			OnMessageFunc: onMessage,
 		},
 	)
 	if err != nil {
@@ -101,7 +101,7 @@ func main() {
 	}
 }
 
-func onResponse(c *mrcp.Channel, msg mrcp.Message) {
+func onMessage(c *mrcp.Channel, msg mrcp.Message) {
 	responses <- msg
 }
 

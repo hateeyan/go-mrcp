@@ -40,14 +40,24 @@ type ControlDesc struct {
 	Proto          string
 	SetupType      string
 	ConnectionType string
-	Channel        string
+	Channel        ChannelId
 	Resource       Resource
+}
+
+const (
+	CodecTelephoneEvent = "telephone-event"
+)
+
+var defaultAudioCodecs = []CodecDesc{
+	{PayloadType: 0, Name: "PCMU", SampleRate: 8000},
+	{PayloadType: 8, Name: "PCMA", SampleRate: 8000},
+	{PayloadType: 101, Name: CodecTelephoneEvent, SampleRate: 8000, FormatParams: map[string]string{"0-15": ""}},
 }
 
 var codecsMap = map[int]CodecDesc{
 	0:   {PayloadType: 0, Name: "PCMU", SampleRate: 8000},
 	8:   {PayloadType: 8, Name: "PCMA", SampleRate: 8000},
-	101: {PayloadType: 101, Name: "telephone-event", SampleRate: 8000, FormatParams: map[string]string{"0-15": ""}},
+	101: {PayloadType: 101, Name: CodecTelephoneEvent, SampleRate: 8000, FormatParams: map[string]string{"0-15": ""}},
 }
 
 type CodecDesc struct {
@@ -59,17 +69,6 @@ type CodecDesc struct {
 
 func (c CodecDesc) equal(cd CodecDesc) bool {
 	return c.PayloadType == cd.PayloadType && c.Name == cd.Name && c.SampleRate == cd.SampleRate
-}
-
-func negotiateCodec(lcodecs, rcodecs []CodecDesc) (CodecDesc, bool) {
-	for _, rcodec := range rcodecs {
-		for _, lcodec := range lcodecs {
-			if rcodec.equal(lcodec) {
-				return rcodec, true
-			}
-		}
-	}
-	return CodecDesc{}, false
 }
 
 type MediaDesc struct {
@@ -124,7 +123,7 @@ func parseSDP(raw []byte) (Desc, error) {
 				case "connection":
 					desc.ControlDesc.ConnectionType = a.Value
 				case "channel":
-					desc.ControlDesc.Channel = a.Value
+					desc.ControlDesc.Channel = parseChannelId(a.Value)
 				case "resource":
 					desc.ControlDesc.Resource = Resource(a.Value)
 				}
@@ -199,7 +198,6 @@ func (d Desc) generateSDP() ([]byte, error) {
 				Attributes: []sdp.Attribute{
 					{Key: "setup", Value: d.ControlDesc.SetupType},
 					{Key: "connection", Value: d.ControlDesc.ConnectionType},
-					{Key: "resource", Value: string(d.ControlDesc.Resource)},
 					{Key: "cmid", Value: "1"},
 				},
 			},
@@ -222,6 +220,14 @@ func (d Desc) generateSDP() ([]byte, error) {
 		sd.Origin.Username = d.UserAgent
 	}
 
+	control := sd.MediaDescriptions[0]
+	if d.ControlDesc.Resource != "" {
+		control.Attributes = append(control.Attributes, sdp.Attribute{Key: "resource", Value: string(d.ControlDesc.Resource)})
+	}
+	if d.ControlDesc.Channel.Id != "" {
+		control.Attributes = append(control.Attributes, sdp.Attribute{Key: "channel", Value: d.ControlDesc.Channel.String()})
+	}
+
 	audio := sd.MediaDescriptions[1]
 	for _, codec := range d.AudioDesc.Codecs {
 		pt := strconv.Itoa(codec.PayloadType)
@@ -238,4 +244,28 @@ func (d Desc) generateSDP() ([]byte, error) {
 	}
 
 	return sd.Marshal()
+}
+
+type DialogHandler interface {
+	OnMediaOpen(media *Media) MediaHandler
+	OnChannelOpen(channel *Channel) ChannelHandler
+}
+
+type DialogHandlerFunc struct {
+	OnMediaOpenFunc   func(media *Media) MediaHandler
+	OnChannelOpenFunc func(channel *Channel) ChannelHandler
+}
+
+func (h DialogHandlerFunc) OnMediaOpen(media *Media) MediaHandler {
+	if h.OnMediaOpenFunc != nil {
+		return h.OnMediaOpenFunc(media)
+	}
+	return nil
+}
+
+func (h DialogHandlerFunc) OnChannelOpen(channel *Channel) ChannelHandler {
+	if h.OnChannelOpenFunc != nil {
+		return h.OnChannelOpenFunc(channel)
+	}
+	return nil
 }

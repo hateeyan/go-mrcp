@@ -32,9 +32,10 @@ const (
 )
 
 const (
-	HeaderContentType     = "Content-Type"
-	HeaderContentLength   = "Content-Length"
-	HeaderCompletionCause = "Completion-Cause"
+	HeaderContentType       = "Content-Type"
+	HeaderContentLength     = "Content-Length"
+	HeaderCompletionCause   = "Completion-Cause"
+	HeaderChannelIdentifier = "Channel-Identifier"
 )
 
 const (
@@ -45,6 +46,23 @@ const (
 
 type CompletionCause int
 
+func (c CompletionCause) Marshal(resource Resource) string {
+	switch resource {
+	case ResourceSpeechrecog:
+		if c >= _RecogCompletionCauseMax {
+			return ""
+		}
+		return recogCompletionCauses[c]
+	case ResourceSpeechsynth:
+		if c >= _SynthCompletionCauseMax {
+			return ""
+		}
+		return synthCompletionCauses[c]
+	default:
+		return ""
+	}
+}
+
 const (
 	SynthCompletionCauseNormal CompletionCause = iota
 	SynthCompletionCauseBargeIn
@@ -54,6 +72,8 @@ const (
 	SynthCompletionCauseLanguageUnsupported
 	SynthCompletionCauseLexiconLoadFailure
 	SynthCompletionCauseCancelled
+
+	_SynthCompletionCauseMax
 )
 
 const (
@@ -74,6 +94,40 @@ const (
 	RecogCompletionCausePartialMatchMaxTime
 	RecogCompletionCauseNoMatchMaxTime
 	RecogCompletionCauseGrammarDefinitionFailure
+
+	_RecogCompletionCauseMax
+)
+
+var (
+	synthCompletionCauses = []string{
+		"000 normal",
+		"001 barge-in",
+		"002 parse-failure",
+		"003 uri-failure",
+		"004 error",
+		"005 language-unsupported",
+		"006 lexicon-load-failure",
+		"007 cancelled",
+	}
+	recogCompletionCauses = []string{
+		"000 success",
+		"001 no-match",
+		"002 no-input-timeout",
+		"003 hotword-maxtime",
+		"004 grammar-load-failure",
+		"005 grammar-compilation-failure",
+		"006 recognizer-error",
+		"007 speech-too-early",
+		"008 success-maxtime",
+		"009 uri-failure",
+		"010 language-unsupported",
+		"011 cancelled",
+		"012 semantics-failure",
+		"013 partial-match",
+		"014 partial-match-maxtime",
+		"015 no-match-maxtime",
+		"016 grammar-definition-failure",
+	}
 )
 
 type MessageType uint8
@@ -94,16 +148,6 @@ type Message struct {
 	statusCode   int
 	headers      map[string]string
 	body         []byte
-}
-
-func NewMessage(method, channelId string) Message {
-	return Message{
-		name:      method,
-		requestId: 1,
-		headers: map[string]string{
-			"Channel-Identifier": channelId,
-		},
-	}
 }
 
 func Unmarshal(msg []byte) (Message, error) {
@@ -146,15 +190,35 @@ func (m *Message) Marshal() []byte {
 	buf1.Write(m.body)
 
 	requestId := strconv.FormatUint(uint64(m.requestId), 10)
-	n := 11 + len(m.name) + len(requestId) + buf1.Len()
+
+	var n int
+	switch m.messageType {
+	case MessageTypeRequest:
+		n = 11 + len(m.name) + len(requestId) + buf1.Len()
+	case MessageTypeResponse:
+		n = 12 + len(requestId) + len(strconv.Itoa(m.statusCode)) + len(m.requestState) + buf1.Len()
+	case MessageTypeEvent:
+		n = 12 + len(m.name) + len(requestId) + len(m.requestState) + buf1.Len()
+	}
 	n += len(strconv.Itoa(n))
 	buf := bytes.NewBuffer(make([]byte, 0, n))
 	buf.WriteString("MRCP/2.0 ")
 	buf.WriteString(strconv.Itoa(n))
 	buf.WriteByte(' ')
-	buf.WriteString(m.name)
-	buf.WriteByte(' ')
+	if m.messageType == MessageTypeRequest || m.messageType == MessageTypeEvent {
+		buf.WriteString(m.name)
+		buf.WriteByte(' ')
+	}
 	buf.WriteString(requestId)
+	if m.messageType == MessageTypeResponse {
+		buf.WriteByte(' ')
+		buf.WriteString(strconv.Itoa(m.statusCode))
+		buf.WriteByte(' ')
+		buf.WriteString(m.requestState)
+	} else if m.messageType == MessageTypeEvent {
+		buf.WriteByte(' ')
+		buf.WriteString(m.requestState)
+	}
 	buf.Write(buf1.Bytes())
 
 	return buf.Bytes()
@@ -229,6 +293,10 @@ func (m *Message) parseHeaders(r *bufio.Reader) error {
 		m.headers[string(line[:i])] = string(v)
 	}
 	return nil
+}
+
+func (m *Message) SetCompletionCause(resource Resource, cc CompletionCause) {
+	m.SetHeader(HeaderCompletionCause, cc.Marshal(resource))
 }
 
 func (m *Message) GetCompletionCause() CompletionCause {

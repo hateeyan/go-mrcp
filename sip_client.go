@@ -5,7 +5,6 @@ import (
 	"github.com/emiago/sipgo/sip"
 	"log/slog"
 	"sync"
-	"sync/atomic"
 )
 
 type SIPClient struct {
@@ -27,11 +26,7 @@ type SIPClient struct {
 	// internal
 	localHost string
 
-	ports     sync.Map
-	nextPort  uint16
-	portsUsed atomic.Int64
-	portsMax  uint16
-
+	porter  *porter
 	ua      sipgo.DialogUA
 	dialogs sync.Map
 }
@@ -52,8 +47,6 @@ func (c *SIPClient) Run() error {
 	if c.RtpPortMax == 0 {
 		c.RtpPortMax = defaultRtpPortMax
 	}
-	c.nextPort = c.RtpPortMin
-	c.portsMax = c.RtpPortMax - c.RtpPortMin
 	if c.Logger == nil {
 		c.Logger = slog.Default()
 	}
@@ -63,6 +56,11 @@ func (c *SIPClient) Run() error {
 		return err
 	}
 	c.localHost = lhost
+
+	c.porter, err = newPorter(c.RtpPortMin, c.RtpPortMax)
+	if err != nil {
+		return err
+	}
 
 	ua, err := sipgo.NewUA()
 	if err != nil {
@@ -102,7 +100,7 @@ func (c *SIPClient) Dial(
 		_ = dc.Close()
 		return nil, err
 	}
-	if err := dc.dialMrcpServer(channelHandler); err != nil {
+	if err := dc.dialMRCPServer(channelHandler); err != nil {
 		_ = dc.Close()
 		return nil, err
 	}
@@ -141,32 +139,6 @@ func (c *SIPClient) onRequest(req *sip.Request, tx sip.ServerTransaction) {
 	if tx != nil {
 		tx.Terminate()
 	}
-}
-
-// getPort get a free RTP and RTCP port pair.
-func (c *SIPClient) getPort() (uint16, error) {
-	if c.portsMax-uint16(c.portsUsed.Load()) < 10 {
-		return 0, ErrNoFreePorts
-	}
-
-	for {
-		port := c.nextPort
-		_, loaded := c.ports.LoadOrStore(port, struct{}{})
-		c.nextPort += 2
-		if c.nextPort >= c.RtpPortMax {
-			c.nextPort = c.RtpPortMin
-		}
-		if loaded {
-			continue
-		}
-		c.portsUsed.Add(2)
-		return port, nil
-	}
-}
-
-func (c *SIPClient) freePort(port uint16) {
-	c.ports.Delete(port)
-	c.portsUsed.Add(-2)
 }
 
 func (c *SIPClient) Close() error {

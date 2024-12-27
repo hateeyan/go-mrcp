@@ -37,7 +37,10 @@ func Test_parseSDP(t *testing.T) {
 					Proto:          "TCP/MRCPv2",
 					SetupType:      SetupPassive,
 					ConnectionType: ConnectionNew,
-					Channel:        "24208d6b89a1403f@speechrecog",
+					Channel: ChannelId{
+						Id:       "24208d6b89a1403f",
+						Resource: ResourceSpeechrecog,
+					},
 				},
 			},
 			wantErr: false,
@@ -93,7 +96,7 @@ func TestDesc_generateSDP(t *testing.T) {
 					Resource:       ResourceSpeechrecog,
 				},
 			},
-			want:    "v=0\r\no=go-mrcp 0 0 IN IP4 127.0.0.1\r\ns=-\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=application 9 TCP/MRCPv2 1\r\na=setup:active\r\na=connection:new\r\na=resource:speechrecog\r\na=cmid:1\r\nm=audio 10000 RTP/AVP 0 8 101\r\na=sendonly\r\na=ptime:20\r\na=mid:1\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:8 PCMA/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-15\r\n",
+			want:    "v=0\r\no=go-mrcp 0 0 IN IP4 127.0.0.1\r\ns=-\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=application 9 TCP/MRCPv2 1\r\na=setup:active\r\na=connection:new\r\na=cmid:1\r\na=resource:speechrecog\r\nm=audio 10000 RTP/AVP 0 8 101\r\na=sendonly\r\na=ptime:20\r\na=mid:1\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:8 PCMA/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-15\r\n",
 			wantErr: false,
 		},
 	}

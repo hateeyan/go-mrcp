@@ -57,23 +57,25 @@ func TestUnmarshal(t *testing.T) {
 
 func TestMessage_Marshal(t *testing.T) {
 	type fields struct {
-		messageType MessageType
-		Length      int
-		Method      string
-		RequestId   uint32
-		Headers     map[string]string
-		Body        []byte
+		messageType  MessageType
+		Length       int
+		Name         string
+		RequestId    uint32
+		RequestState string
+		StatusCode   int
+		Headers      map[string]string
+		Body         []byte
 	}
 	tests := []struct {
 		name   string
 		fields fields
 	}{
 		{
-			name: "recognize",
+			name: "request",
 			fields: fields{
 				messageType: MessageTypeRequest,
 				Length:      387,
-				Method:      MethodRecognize,
+				Name:        MethodRecognize,
 				RequestId:   2,
 				Headers: map[string]string{
 					"Channel-Identifier":        "24208d6b89a1403f@speechrecog",
@@ -91,16 +93,50 @@ func TestMessage_Marshal(t *testing.T) {
 				Body: []byte("session:a4af7ee8-e6ff-4833-8037-5c0bc8b0b692"),
 			},
 		},
+		{
+			name: "response",
+			fields: fields{
+				messageType:  MessageTypeResponse,
+				Length:       112,
+				RequestId:    1,
+				RequestState: "COMPLETE",
+				StatusCode:   200,
+				Headers: map[string]string{
+					"Channel-Identifier": "b2587e873c604dcf@speechrecog",
+					"Completion-Cause":   "000 success",
+				},
+				Body: []byte{},
+			},
+		},
+		{
+			name: "event",
+			fields: fields{
+				messageType:  MessageTypeEvent,
+				Length:       1088,
+				Name:         "RECOGNITION-COMPLETE",
+				RequestId:    2,
+				RequestState: "COMPLETE",
+				Headers: map[string]string{
+					"Channel-Identifier": "b2587e873c604dcf@speechrecog",
+					"Completion-Cause":   "000 success",
+					"Content-Type":       "application/nlsml+xml",
+					"Content-Length":     "900",
+				},
+				Body: []byte("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<result>\n  <interpretation grammar=\"session:d696fd26-e3aa-406a-b76b-e04c3ce696ed\">\n    <instance>\n      <nlpSpeech>PGF1ZGlvIHNyYz0iaHR0cHM6Ly9zdG9yYWdlLmpkLmNvbS9vcGVuLmppbWkucmVzb3VyY2UuZXh0LzEvYW5zd2VyLzIwMjQxMi8zMzZjMTg3ZWFkNTZkMTYxYmExMmYxM2YwYWRjNDE5ZC5tcDMiLz4=;encoding=base64;vid=1697775369063;cid=2322568;mid=70cddf6d-ba82-4db9-8ba4-121dd9ad9ac5;sid=67c95bb8b9ca425b94a82af6f64d911c@1_1321298939134640133_4857096;endpointip=10.29.0.87;endpointport=6021;holdttsch=1;revokebarparmid=70cddf6d-ba82-4db9-8ba4-121dd9ad9ac5;nlpmsgstime=1735093326816;nlpterm=1;nlpdiagseq=1;bargeinstatus=0;bargeinmode=percent;bargeinvpercent=30</nlpSpeech>\n      <command/>\n      <business>{}</business>\n      <mid>70cddf6d-ba82-4db9-8ba4-121dd9ad9ac5</mid>\n      <input/>\n    </instance>\n    <input mode=\"speech\">\n      <noinput/>\n    </input>\n  </interpretation>\n</result>\n"),
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Message{
-				messageType: tt.fields.messageType,
-				length:      tt.fields.Length,
-				name:        tt.fields.Method,
-				requestId:   tt.fields.RequestId,
-				headers:     tt.fields.Headers,
-				body:        tt.fields.Body,
+				messageType:  tt.fields.messageType,
+				length:       tt.fields.Length,
+				name:         tt.fields.Name,
+				requestId:    tt.fields.RequestId,
+				requestState: tt.fields.RequestState,
+				statusCode:   tt.fields.StatusCode,
+				headers:      tt.fields.Headers,
+				body:         tt.fields.Body,
 			}
 			data := m.Marshal()
 			got, err := Unmarshal(data)
@@ -109,7 +145,7 @@ func TestMessage_Marshal(t *testing.T) {
 				return
 			}
 			if !reflect.DeepEqual(got, m) {
-				t.Errorf("Unmarshal() = %v, want %v", got, m)
+				t.Errorf("Unmarshal() = \n%v, want \n%v", got, m)
 			}
 		})
 	}

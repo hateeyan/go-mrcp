@@ -11,8 +11,9 @@ A pure Go MRCPv2 library.
 ## Features
 
 - [x] MRCPv2 client
-- [ ] MRCPv2 server (in progress)
+- [x] MRCPv2 server
 
 ## Examples
 
 - client [examples/client](examples/client) 
+- server [examples/server](examples/server) 
