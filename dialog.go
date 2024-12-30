@@ -31,6 +31,7 @@ const (
 	DirectionSendonly Direction = "sendonly"
 	DirectionRecvonly Direction = "recvonly"
 	DirectionSendrecv Direction = "sendrecv"
+	DirectionInactive Direction = "inactive"
 )
 
 type ControlDesc struct {
@@ -153,7 +154,7 @@ func parseSDP(raw []byte) (Desc, error) {
 					// TODO: parse rtpmap
 				case "fmtp":
 					// TODO: parse fmtp
-				case string(DirectionSendonly), string(DirectionRecvonly), string(DirectionSendrecv):
+				case string(DirectionSendonly), string(DirectionRecvonly), string(DirectionSendrecv), string(DirectionInactive):
 					desc.AudioDesc.Direction = Direction(a.Key)
 				case "ptime":
 					got, err := strconv.Atoi(a.Value)

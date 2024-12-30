@@ -67,6 +67,7 @@ type Media struct {
 	// preferred telephone-event codec
 	eventCodec CodecDesc
 	handler    MediaHandler
+	closed     bool
 	logger     *slog.Logger
 }
 
@@ -176,7 +177,7 @@ func (m *Media) startReadMedia() {
 	for {
 		n, addr, err := m.conn.ReadFromUDP(buf)
 		if err != nil {
-			if err != io.EOF {
+			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
 				m.logger.Error("failed to read media", "error", err)
 			}
 			break
@@ -211,9 +212,10 @@ func (m *Media) LocalAudioDesc() MediaDesc  { return m.laudioDesc }
 func (m *Media) RemoteAudioDesc() MediaDesc { return m.raudioDesc }
 
 func (m *Media) Close() error {
-	if m == nil {
+	if m == nil || m.closed {
 		return nil
 	}
+	m.closed = true
 	if m.conn != nil {
 		_ = m.conn.Close()
 	}

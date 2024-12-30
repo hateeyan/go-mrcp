@@ -17,9 +17,9 @@ func Test_parseSDP(t *testing.T) {
 	}{
 		{
 			name: "sdp",
-			args: args{raw: []byte("v=0\r\no=UniMRCPServer 5710209595858788961 7814554407398160305 IN IP4 10.29.0.87\r\ns=-\r\nc=IN IP4 10.29.0.87\r\nt=0 0\r\nm=application 7230 TCP/MRCPv2 1\r\na=setup:passive\r\na=connection:new\r\na=channel:24208d6b89a1403f@speechrecog\r\na=cmid:1\r\nm=audio 22836 RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-15\r\na=recvonly\r\na=ptime:20\r\na=mid:1\r\n")},
+			args: args{raw: []byte("v=0\r\no=go-mrcp 5710209595858788961 7814554407398160305 IN IP4 10.29.0.87\r\ns=-\r\nc=IN IP4 10.29.0.87\r\nt=0 0\r\nm=application 7230 TCP/MRCPv2 1\r\na=setup:passive\r\na=connection:new\r\na=channel:24208d6b89a1403f@speechrecog\r\na=cmid:1\r\nm=audio 22836 RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-15\r\na=recvonly\r\na=ptime:20\r\na=mid:1\r\n")},
 			want: Desc{
-				UserAgent: "UniMRCPServer",
+				UserAgent: defaultUserAgent,
 				Host:      "10.29.0.87",
 				AudioDesc: MediaDesc{
 					Host:      "10.29.0.87",
@@ -34,13 +34,33 @@ func Test_parseSDP(t *testing.T) {
 				ControlDesc: ControlDesc{
 					Host:           "10.29.0.87",
 					Port:           7230,
-					Proto:          "TCP/MRCPv2",
+					Proto:          ProtoTCP,
 					SetupType:      SetupPassive,
 					ConnectionType: ConnectionNew,
 					Channel: ChannelId{
 						Id:       "24208d6b89a1403f",
 						Resource: ResourceSpeechrecog,
 					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "deallocate",
+			args: args{raw: []byte("v=0\r\no=go-mrcp 3033826439310859339 3200628959442406558 IN IP4 10.9.232.246\r\ns=-\r\nc=IN IP4 10.9.232.246\r\nt=0 0\r\nm=application 0 TCP/MRCPv2 1\r\na=inactive\r\nm=audio 0 RTP/AVP 19\r\na=inactive\r\n")},
+			want: Desc{
+				UserAgent: defaultUserAgent,
+				Host:      "10.9.232.246",
+				AudioDesc: MediaDesc{
+					Host:      "10.9.232.246",
+					Port:      0,
+					Direction: DirectionInactive,
+					Codecs:    nil,
+				},
+				ControlDesc: ControlDesc{
+					Host:  "10.9.232.246",
+					Port:  0,
+					Proto: ProtoTCP,
 				},
 			},
 			wantErr: false,

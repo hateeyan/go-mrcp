@@ -135,6 +135,7 @@ type Channel struct {
 	requestId uint32
 	conn      *connection
 	handler   ChannelHandler
+	closed    bool
 	logger    *slog.Logger
 }
 
@@ -231,8 +232,9 @@ func (c *Channel) GetResource() Resource         { return c.id.Resource }
 func (c *Channel) setResource(resource Resource) { c.id.Resource = resource }
 
 func (c *Channel) Close() error {
-	if c == nil {
+	if c == nil || c.closed {
 		return nil
 	}
+	c.closed = true
 	return c.conn.Close()
 }

@@ -153,16 +153,26 @@ func (s *Server) startMRCPServer() error {
 
 func (s *Server) onInvite(req *sip.Request, tx sip.ServerTransaction) {
 	callId := req.CallID().Value()
-	session, err := s.ua.ReadInvite(req, tx)
-	if err != nil {
-		s.Logger.Error("failed to read INVITE request", "call", callId, "error", err)
-		return
-	}
-	dialog := s.newDialog(session)
-
-	if err := dialog.onInvite(req, tx); err != nil {
-		s.Logger.Error("failed to handle new dialog", "call", callId, "error", err)
-		return
+	got, ok := s.dialogs.Load(callId)
+	if !ok {
+		// new dialog
+		session, err := s.ua.ReadInvite(req, tx)
+		if err != nil {
+			s.Logger.Error("failed to read INVITE request", "callId", callId, "error", err)
+			return
+		}
+		dialog := s.newDialog(session)
+		if err := dialog.onInvite(req, tx); err != nil {
+			s.Logger.Error("failed to handle INVITE request", "callId", callId, "error", err)
+			return
+		}
+	} else {
+		// reinvite
+		dialog := got.(*DialogServer)
+		if err := dialog.onReInvite(req, tx); err != nil {
+			s.Logger.Error("failed to handle re-INVITE request", "callId", callId, "error", err)
+			return
+		}
 	}
 }
 
@@ -173,7 +183,7 @@ func (s *Server) onAck(req *sip.Request, tx sip.ServerTransaction) {
 	}
 	dialog := got.(*DialogServer)
 	if err := dialog.session.ReadAck(req, tx); err != nil {
-		s.Logger.Error("failed to read ACK request", "call", req.CallID(), "error", err)
+		s.Logger.Error("failed to read ACK request", "callId", req.CallID(), "error", err)
 		return
 	}
 }
@@ -182,13 +192,13 @@ func (s *Server) onBye(req *sip.Request, tx sip.ServerTransaction) {
 	got, ok := s.dialogs.Load(req.CallID().Value())
 	if !ok {
 		if err := tx.Respond(sip.NewResponseFromRequest(req, sip.StatusOK, "OK", nil)); err != nil {
-			s.Logger.Warn("failed to respond BYE request", "call", req.CallID(), "error", err)
+			s.Logger.Warn("failed to respond BYE request", "callId", req.CallID(), "error", err)
 		}
 		return
 	}
 	dialog := got.(*DialogServer)
 	if err := dialog.onBye(req, tx); err != nil {
-		s.Logger.Error("failed to handle BYE request", "call", req.CallID(), "error", err)
+		s.Logger.Error("failed to handle BYE request", "callId", req.CallID(), "error", err)
 		return
 	}
 }
