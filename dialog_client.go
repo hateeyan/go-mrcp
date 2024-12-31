@@ -12,7 +12,7 @@ import (
 type DialogClient struct {
 	callId       string
 	ldesc, rdesc Desc
-	sc           *SIPClient
+	sc           *Client
 	channel      *Channel
 	media        *Media
 	session      *sipgo.DialogClientSession
@@ -22,7 +22,7 @@ type DialogClient struct {
 	logger       *slog.Logger
 }
 
-func (c *SIPClient) newDialog(resource Resource) (*DialogClient, error) {
+func (c *Client) newDialog(resource Resource) (*DialogClient, error) {
 	audioDesc := MediaDesc{
 		Host:   c.localHost,
 		Ptime:  20,

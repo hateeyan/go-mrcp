@@ -60,19 +60,19 @@ func recognize(dialog *mrcp.DialogClient) error {
 }
 
 func main() {
-	sipClient := mrcp.SIPClient{
+	client := mrcp.Client{
 		LocalAddr: "10.9.232.246:5020",
 	}
 
-	// run sip client
-	if err := sipClient.Run(); err != nil {
+	// start client
+	if err := client.Run(); err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer sipClient.Close()
+	defer client.Close()
 
 	// connect to mrcp server
-	dialog, err := sipClient.Dial(
+	dialog, err := client.Dial(
 		"10.9.232.246:8060",
 		mrcp.ResourceSpeechrecog,
 		mrcp.MediaHandlerFunc{

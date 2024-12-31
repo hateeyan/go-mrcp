@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-type SIPClient struct {
+type Client struct {
 	// LocalAddr local address
 	// Format: <host>:<port>
 	LocalAddr string
@@ -31,7 +31,7 @@ type SIPClient struct {
 	dialogs sync.Map
 }
 
-func (c *SIPClient) Run() error {
+func (c *Client) Run() error {
 	if c.LocalAddr == "" {
 		c.LocalAddr = "127.0.0.1:5060"
 	}
@@ -82,7 +82,7 @@ func (c *SIPClient) Run() error {
 	return nil
 }
 
-func (c *SIPClient) Dial(
+func (c *Client) Dial(
 	raddr string,
 	resource Resource,
 	mediaHandler MediaHandler,
@@ -107,7 +107,7 @@ func (c *SIPClient) Dial(
 	return dc, nil
 }
 
-func (c *SIPClient) onBye(req *sip.Request, tx sip.ServerTransaction) {
+func (c *Client) onBye(req *sip.Request, tx sip.ServerTransaction) {
 	got, ok := c.dialogs.Load(req.CallID().Value())
 	if !ok {
 		if err := tx.Respond(sip.NewResponseFromRequest(req, sip.StatusOK, "OK", nil)); err != nil {
@@ -123,7 +123,7 @@ func (c *SIPClient) onBye(req *sip.Request, tx sip.ServerTransaction) {
 	}
 }
 
-func (c *SIPClient) onRequest(req *sip.Request, tx sip.ServerTransaction) {
+func (c *Client) onRequest(req *sip.Request, tx sip.ServerTransaction) {
 	switch req.Method {
 	case sip.BYE:
 		c.onBye(req, tx)
@@ -141,7 +141,7 @@ func (c *SIPClient) onRequest(req *sip.Request, tx sip.ServerTransaction) {
 	}
 }
 
-func (c *SIPClient) Close() error {
+func (c *Client) Close() error {
 	_ = c.ua.Client.Close()
 	_ = c.ua.Client.UserAgent.Close()
 	return nil
