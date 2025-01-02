@@ -196,6 +196,10 @@ func (m *Media) startReadMedia() {
 func (m *Media) startSendMedia(ptime int) {
 	t := time.NewTicker(time.Duration(ptime) * time.Millisecond)
 	for range t.C {
+		if m.closed {
+			break
+		}
+
 		data, ok := m.handler.ReadRTPPacket(m)
 		if !ok {
 			break

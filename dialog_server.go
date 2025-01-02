@@ -192,14 +192,17 @@ func (d *DialogServer) Close() error {
 	d.cancel()
 	_ = d.media.Close()
 	_ = d.channel.Close()
-	if d.session.LoadState() == sip.DialogStateConfirmed {
-		if err := d.session.Bye(context.Background()); err != nil {
-			d.logger.Error("failed to send bye request", "error", err)
+	if d.session != nil {
+		if d.session.LoadState() == sip.DialogStateConfirmed {
+			if err := d.session.Bye(context.Background()); err != nil {
+				d.logger.Error("failed to send bye request", "error", err)
+			}
 		}
+		_ = d.session.Close()
 	}
 	d.ss.porter.free(uint16(d.ldesc.AudioDesc.Port))
 	d.ss.dialogs.Delete(d.callId)
 	d.ss.dialogs.Delete(d.channel.GetChannelId().Id)
 
-	return d.session.Close()
+	return nil
 }

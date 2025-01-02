@@ -148,13 +148,16 @@ func (d *DialogClient) Close() error {
 	d.cancel()
 	_ = d.media.Close()
 	_ = d.channel.Close()
-	if d.session.LoadState() == sip.DialogStateConfirmed {
-		if err := d.session.Bye(context.Background()); err != nil {
-			d.logger.Error("failed to send bye request", "error", err)
+	if d.session != nil {
+		if d.session.LoadState() == sip.DialogStateConfirmed {
+			if err := d.session.Bye(context.Background()); err != nil {
+				d.logger.Error("failed to send bye request", "error", err)
+			}
 		}
+		_ = d.session.Close()
 	}
 	d.sc.porter.free(uint16(d.ldesc.AudioDesc.Port))
 	d.sc.dialogs.Delete(d.callId)
 
-	return d.session.Close()
+	return nil
 }
