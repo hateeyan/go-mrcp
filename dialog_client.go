@@ -9,6 +9,14 @@ import (
 	"log/slog"
 )
 
+type DialogClientOptionFunc func(d *DialogClient)
+
+func WithAudioCodecs(codecs []CodecDesc) DialogClientOptionFunc {
+	return func(d *DialogClient) {
+		d.ldesc.AudioDesc.Codecs = codecs
+	}
+}
+
 type DialogClient struct {
 	callId       string
 	ldesc, rdesc Desc
@@ -16,13 +24,14 @@ type DialogClient struct {
 	channel      *Channel
 	media        *Media
 	session      *sipgo.DialogClientSession
+	handler      DialogHandler
 	ctx          context.Context
 	cancel       context.CancelFunc
 	closed       bool
 	logger       *slog.Logger
 }
 
-func (c *Client) newDialog(resource Resource) (*DialogClient, error) {
+func (c *Client) newDialog(resource Resource, handler DialogHandler, opts ...DialogClientOptionFunc) (*DialogClient, error) {
 	audioDesc := MediaDesc{
 		Host:   c.localHost,
 		Ptime:  20,
@@ -60,9 +69,15 @@ func (c *Client) newDialog(resource Resource) (*DialogClient, error) {
 			AudioDesc:   audioDesc,
 			ControlDesc: controlDesc,
 		},
-		sc:     c,
-		logger: c.Logger,
+		sc:      c,
+		handler: handler,
+		logger:  c.Logger,
 	}
+
+	for _, fn := range opts {
+		fn(d)
+	}
+
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 	c.dialogs.Store(d.callId, d)
 	return d, nil
@@ -138,6 +153,8 @@ func (d *DialogClient) onResponse(res *sip.Response) error {
 }
 
 func (d *DialogClient) GetChannel() *Channel { return d.channel }
+func (d *DialogClient) GetLocalDesc() *Desc  { return &d.ldesc }
+func (d *DialogClient) GetRemoteDesc() *Desc { return &d.rdesc }
 
 func (d *DialogClient) Close() error {
 	if d.closed {
@@ -158,6 +175,10 @@ func (d *DialogClient) Close() error {
 	}
 	d.sc.porter.free(uint16(d.ldesc.AudioDesc.Port))
 	d.sc.dialogs.Delete(d.callId)
+
+	if d.handler != nil {
+		d.handler.OnClose()
+	}
 
 	return nil
 }

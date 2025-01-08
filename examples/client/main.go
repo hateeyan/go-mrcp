@@ -75,12 +75,18 @@ func main() {
 	dialog, err := client.Dial(
 		"10.9.232.246:8060",
 		mrcp.ResourceSpeechrecog,
-		mrcp.MediaHandlerFunc{
-			StartTxFunc:       startTx,
-			ReadRTPPacketFunc: readRTPPacket,
-		},
-		mrcp.ChannelHandlerFunc{
-			OnMessageFunc: onMessage,
+		mrcp.DialogHandlerFunc{
+			OnMediaOpenFunc: func(_ *mrcp.Media) mrcp.MediaHandler {
+				return mrcp.MediaHandlerFunc{
+					StartTxFunc:       startTx,
+					ReadRTPPacketFunc: readRTPPacket,
+				}
+			},
+			OnChannelOpenFunc: func(_ *mrcp.Channel) mrcp.ChannelHandler {
+				return mrcp.ChannelHandlerFunc{
+					OnMessageFunc: onMessage,
+				}
+			},
 		},
 	)
 	if err != nil {

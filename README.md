@@ -17,3 +17,4 @@ A pure Go MRCPv2 library.
 
 - client [examples/client](examples/client) 
 - server [examples/server](examples/server) 
+- proxy [examples/proxy](examples/proxy) 

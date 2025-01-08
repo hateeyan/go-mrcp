@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
-	"github.com/hateeyan/go-mrcp/pkg"
 	"log/slog"
 	"net"
 	"strconv"
@@ -12,18 +11,18 @@ import (
 )
 
 type ServerHandler interface {
-	OnDialogCreate(d *DialogServer) DialogHandler
+	OnDialogCreate(d *DialogServer) (DialogHandler, error)
 }
 
 type ServerHandlerFunc struct {
-	OnDialogCreateFunc func(d *DialogServer) DialogHandler
+	OnDialogCreateFunc func(d *DialogServer) (DialogHandler, error)
 }
 
-func (h ServerHandlerFunc) OnDialogCreate(d *DialogServer) DialogHandler {
+func (h ServerHandlerFunc) OnDialogCreate(d *DialogServer) (DialogHandler, error) {
 	if h.OnDialogCreateFunc != nil {
 		return h.OnDialogCreateFunc(d)
 	}
-	return nil
+	return nil, nil
 }
 
 type Server struct {
@@ -51,9 +50,10 @@ type Server struct {
 	Logger *slog.Logger
 
 	// internal
-	porter  *porter
-	ua      sipgo.DialogUA
-	dialogs sync.Map
+	porter   *porter
+	ua       sipgo.DialogUA
+	dialogs  sync.Map
+	channels sync.Map
 }
 
 func (s *Server) Run() error {
@@ -205,26 +205,21 @@ func (s *Server) onBye(req *sip.Request, tx sip.ServerTransaction) {
 
 func (s *Server) onMessage(c *connection, msg Message) {
 	cid := parseChannelId(msg.GetHeader(HeaderChannelIdentifier))
-	got, ok := s.dialogs.Load(cid.Id)
+	got, ok := s.channels.Load(cid.Id)
 	if !ok {
 		s.Logger.Warn("no such dialog", "channelId", cid.String())
 		return
 	}
 
-	d := got.(*DialogServer)
-	if !d.channel.bound() {
-		handler := d.handler.OnChannelOpen(d.channel)
-		d.channel.bind(c, handler)
+	channel := got.(*Channel)
+	if !channel.bound() {
+		channel.bind(c)
 	}
-	d.channel.onMessage(msg)
+	channel.onMessage(msg)
 }
 
-func (s *Server) getOrCreateChannel() *Channel {
-	// TODO: reuse channel
-	id := pkg.RandString(10)
-	c := &Channel{
-		id:     ChannelId{Id: id},
-		logger: s.Logger,
-	}
-	return c
+func (s *Server) Close() error {
+	_ = s.ua.Client.Close()
+	_ = s.ua.Client.UserAgent.Close()
+	return nil
 }

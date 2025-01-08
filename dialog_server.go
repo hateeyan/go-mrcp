@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
+	"github.com/hateeyan/go-mrcp/pkg"
 	"log/slog"
 )
 
@@ -42,18 +43,11 @@ func (s *Server) newDialog(session *sipgo.DialogServerSession) *DialogServer {
 			},
 		},
 		ss:      s,
-		channel: s.getOrCreateChannel(),
 		session: session,
 		logger:  s.Logger,
 	}
-	d.ldesc.ControlDesc.Channel = d.channel.GetChannelId()
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 	s.dialogs.Store(d.callId, d)
-	s.dialogs.Store(d.channel.GetChannelId().Id, d)
-
-	if s.Handler != nil {
-		d.handler = s.Handler.OnDialogCreate(d)
-	}
 	return d
 }
 
@@ -72,7 +66,6 @@ func (d *DialogServer) onInvite(req *sip.Request, tx sip.ServerTransaction) erro
 	}
 	d.rdesc = rdesc
 
-	d.setResource(rdesc.ControlDesc.Resource)
 	switch rdesc.ControlDesc.Resource {
 	case ResourceSpeechrecog:
 		d.ldesc.AudioDesc.Direction = DirectionRecvonly
@@ -84,6 +77,27 @@ func (d *DialogServer) onInvite(req *sip.Request, tx sip.ServerTransaction) erro
 		}
 		return fmt.Errorf("unsupported resource type: %s", rdesc.ControlDesc.Resource)
 	}
+
+	d.channel = &Channel{
+		id:     ChannelId{Resource: rdesc.ControlDesc.Resource},
+		logger: d.logger,
+	}
+	if d.ss.Handler != nil {
+		d.handler, err = d.ss.Handler.OnDialogCreate(d)
+		if err != nil {
+			if err := d.session.Respond(sip.StatusInternalServerError, "Internal Server Error", nil); err != nil {
+				d.logger.Error("failed to respond 500 internal server error", "error", err)
+			}
+			return fmt.Errorf("OnDialogCreate callback failed: %v", err)
+		}
+	}
+	if d.channel.id.Id == "" {
+		d.channel.id.Id = pkg.RandString(10)
+	}
+	if d.handler != nil {
+		d.channel.handler = d.handler.OnChannelOpen(d.channel)
+	}
+	d.ss.channels.Store(d.channel.GetChannelId().Id, d.channel)
 
 	port, err := d.ss.porter.get()
 	if err != nil {
@@ -100,6 +114,7 @@ func (d *DialogServer) onInvite(req *sip.Request, tx sip.ServerTransaction) erro
 		}
 		return err
 	}
+	d.ldesc.ControlDesc.ChannelId = d.channel.GetChannelId()
 	localSDP, err := d.ldesc.generateSDP()
 	if err != nil {
 		if err := d.session.Respond(sip.StatusInternalServerError, "Internal Server Error", nil); err != nil {
@@ -178,10 +193,9 @@ func (d *DialogServer) handleState(s sip.DialogState) {
 	}
 }
 
-func (d *DialogServer) setResource(resource Resource) {
-	d.ldesc.ControlDesc.Channel.Resource = resource
-	d.channel.setResource(resource)
-}
+func (d *DialogServer) GetChannel() *Channel { return d.channel }
+func (d *DialogServer) GetLocalDesc() *Desc  { return &d.ldesc }
+func (d *DialogServer) GetRemoteDesc() *Desc { return &d.rdesc }
 
 func (d *DialogServer) Close() error {
 	if d.closed {
@@ -202,7 +216,11 @@ func (d *DialogServer) Close() error {
 	}
 	d.ss.porter.free(uint16(d.ldesc.AudioDesc.Port))
 	d.ss.dialogs.Delete(d.callId)
-	d.ss.dialogs.Delete(d.channel.GetChannelId().Id)
+	d.ss.channels.Delete(d.channel.GetChannelId().Id)
+
+	if d.handler != nil {
+		d.handler.OnClose()
+	}
 
 	return nil
 }

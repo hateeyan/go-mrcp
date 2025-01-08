@@ -71,7 +71,7 @@ type Media struct {
 	logger     *slog.Logger
 }
 
-func (d *DialogClient) initMedia(handler MediaHandler) error {
+func (d *DialogClient) initMedia() error {
 	d.media = &Media{
 		remote: &net.UDPAddr{
 			IP:   net.ParseIP(d.rdesc.AudioDesc.Host),
@@ -85,7 +85,12 @@ func (d *DialogClient) initMedia(handler MediaHandler) error {
 		return err
 	}
 
-	return d.media.start(handler)
+	if d.handler != nil {
+		d.media.handler = d.handler.OnMediaOpen(d.media)
+		return d.media.start()
+	}
+
+	return nil
 }
 
 func (d *DialogServer) newMedia() error {
@@ -108,7 +113,7 @@ func (d *DialogServer) newMedia() error {
 
 	if d.handler != nil {
 		d.media.handler = d.handler.OnMediaOpen(d.media)
-		if err := d.media.start(d.media.handler); err != nil {
+		if err := d.media.start(); err != nil {
 			return err
 		}
 	}
@@ -116,13 +121,12 @@ func (d *DialogServer) newMedia() error {
 	return nil
 }
 
-func (m *Media) start(handler MediaHandler) error {
+func (m *Media) start() error {
 	var err error
 	m.conn, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(m.laudioDesc.Host), Port: m.laudioDesc.Port})
 	if err != nil {
 		return err
 	}
-	m.handler = handler
 
 	if m.laudioDesc.Direction == DirectionRecvonly || m.laudioDesc.Direction == DirectionSendrecv {
 		if err := m.handler.StartRx(m, m.audioCodec); err != nil {
@@ -203,6 +207,10 @@ func (m *Media) startSendMedia(ptime int) {
 		data, ok := m.handler.ReadRTPPacket(m)
 		if !ok {
 			break
+		}
+
+		if len(data) == 0 {
+			continue
 		}
 
 		if _, err := m.conn.WriteToUDP(data, m.remote); err != nil {

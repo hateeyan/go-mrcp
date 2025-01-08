@@ -139,13 +139,13 @@ type Channel struct {
 	logger    *slog.Logger
 }
 
-func (d *DialogClient) dialMRCPServer(handler ChannelHandler) error {
+func (d *DialogClient) dialMRCPServer() error {
 	if d.channel != nil {
 		return nil
 	}
 
-	if d.rdesc.ControlDesc.Channel.Id == "" {
-		return fmt.Errorf("invalid channel identifier: %s", d.rdesc.ControlDesc.Channel)
+	if d.rdesc.ControlDesc.ChannelId.Id == "" {
+		return fmt.Errorf("invalid channel identifier: %s", d.rdesc.ControlDesc.ChannelId)
 	}
 
 	conn, err := net.Dial("tcp", d.rdesc.ControlDesc.Host+":"+strconv.Itoa(d.rdesc.ControlDesc.Port))
@@ -153,9 +153,11 @@ func (d *DialogClient) dialMRCPServer(handler ChannelHandler) error {
 		return err
 	}
 	d.channel = &Channel{
-		id:      d.rdesc.ControlDesc.Channel,
-		handler: handler,
-		logger:  d.logger,
+		id:     d.rdesc.ControlDesc.ChannelId,
+		logger: d.logger,
+	}
+	if d.handler != nil {
+		d.channel.handler = d.handler.OnChannelOpen(d.channel)
 	}
 	d.channel.conn = &connection{
 		conn: conn,
@@ -205,16 +207,16 @@ func (c *Channel) NewEvent(event, requestState string) Message {
 	}
 }
 
+// TODO: check Channel inused
 func (c *Channel) SendMrcpMessage(msg Message) error {
 	return c.conn.writeMessage(msg)
 }
 
-func (c *Channel) bind(conn *connection, handler ChannelHandler) {
+func (c *Channel) bind(conn *connection) {
 	if c.conn != nil {
 		return
 	}
 	c.conn = conn
-	c.handler = handler
 }
 
 func (c *Channel) bound() bool {
@@ -227,9 +229,9 @@ func (c *Channel) onMessage(msg Message) {
 	}
 }
 
-func (c *Channel) GetChannelId() ChannelId       { return c.id }
-func (c *Channel) GetResource() Resource         { return c.id.Resource }
-func (c *Channel) setResource(resource Resource) { c.id.Resource = resource }
+func (c *Channel) GetChannelId() ChannelId   { return c.id }
+func (c *Channel) SetChannelId(id ChannelId) { c.id = id }
+func (c *Channel) GetResource() Resource     { return c.id.Resource }
 
 func (c *Channel) Close() error {
 	if c == nil || c.closed {

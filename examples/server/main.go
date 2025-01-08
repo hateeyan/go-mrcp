@@ -19,6 +19,7 @@ func main() {
 		fmt.Println("failed to start server:", err)
 		return
 	}
+	defer server.Close()
 }
 
 func onMessage(c *mrcp.Channel, msg mrcp.Message) {
@@ -62,11 +63,11 @@ func onMediaOpen(media *mrcp.Media) mrcp.MediaHandler {
 	}
 }
 
-func onDialogCreate(d *mrcp.DialogServer) mrcp.DialogHandler {
+func onDialogCreate(d *mrcp.DialogServer) (mrcp.DialogHandler, error) {
 	return mrcp.DialogHandlerFunc{
 		OnMediaOpenFunc:   onMediaOpen,
 		OnChannelOpenFunc: onChannelOpen,
-	}
+	}, nil
 }
 
 func onWriteRTP(m *mrcp.Media, rtp []byte) bool {

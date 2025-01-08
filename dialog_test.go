@@ -37,7 +37,7 @@ func Test_parseSDP(t *testing.T) {
 					Proto:          ProtoTCP,
 					SetupType:      SetupPassive,
 					ConnectionType: ConnectionNew,
-					Channel: ChannelId{
+					ChannelId: ChannelId{
 						Id:       "24208d6b89a1403f",
 						Resource: ResourceSpeechrecog,
 					},

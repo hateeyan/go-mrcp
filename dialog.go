@@ -41,7 +41,7 @@ type ControlDesc struct {
 	Proto          string
 	SetupType      string
 	ConnectionType string
-	Channel        ChannelId
+	ChannelId      ChannelId
 	Resource       Resource
 }
 
@@ -124,7 +124,7 @@ func parseSDP(raw []byte) (Desc, error) {
 				case "connection":
 					desc.ControlDesc.ConnectionType = a.Value
 				case "channel":
-					desc.ControlDesc.Channel = parseChannelId(a.Value)
+					desc.ControlDesc.ChannelId = parseChannelId(a.Value)
 				case "resource":
 					desc.ControlDesc.Resource = Resource(a.Value)
 				}
@@ -225,8 +225,8 @@ func (d Desc) generateSDP() ([]byte, error) {
 	if d.ControlDesc.Resource != "" {
 		control.Attributes = append(control.Attributes, sdp.Attribute{Key: "resource", Value: string(d.ControlDesc.Resource)})
 	}
-	if d.ControlDesc.Channel.Id != "" {
-		control.Attributes = append(control.Attributes, sdp.Attribute{Key: "channel", Value: d.ControlDesc.Channel.String()})
+	if d.ControlDesc.ChannelId.Id != "" {
+		control.Attributes = append(control.Attributes, sdp.Attribute{Key: "channel", Value: d.ControlDesc.ChannelId.String()})
 	}
 
 	audio := sd.MediaDescriptions[1]
@@ -250,11 +250,13 @@ func (d Desc) generateSDP() ([]byte, error) {
 type DialogHandler interface {
 	OnMediaOpen(media *Media) MediaHandler
 	OnChannelOpen(channel *Channel) ChannelHandler
+	OnClose()
 }
 
 type DialogHandlerFunc struct {
 	OnMediaOpenFunc   func(media *Media) MediaHandler
 	OnChannelOpenFunc func(channel *Channel) ChannelHandler
+	OnCloseFunc       func()
 }
 
 func (h DialogHandlerFunc) OnMediaOpen(media *Media) MediaHandler {
@@ -269,4 +271,10 @@ func (h DialogHandlerFunc) OnChannelOpen(channel *Channel) ChannelHandler {
 		return h.OnChannelOpenFunc(channel)
 	}
 	return nil
+}
+
+func (h DialogHandlerFunc) OnClose() {
+	if h.OnCloseFunc != nil {
+		h.OnCloseFunc()
+	}
 }

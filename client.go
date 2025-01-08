@@ -85,10 +85,10 @@ func (c *Client) Run() error {
 func (c *Client) Dial(
 	raddr string,
 	resource Resource,
-	mediaHandler MediaHandler,
-	channelHandler ChannelHandler,
+	handler DialogHandler,
+	opts ...DialogClientOptionFunc,
 ) (*DialogClient, error) {
-	dc, err := c.newDialog(resource)
+	dc, err := c.newDialog(resource, handler, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -96,11 +96,11 @@ func (c *Client) Dial(
 		_ = dc.Close()
 		return nil, err
 	}
-	if err := dc.initMedia(mediaHandler); err != nil {
+	if err := dc.initMedia(); err != nil {
 		_ = dc.Close()
 		return nil, err
 	}
-	if err := dc.dialMRCPServer(channelHandler); err != nil {
+	if err := dc.dialMRCPServer(); err != nil {
 		_ = dc.Close()
 		return nil, err
 	}
