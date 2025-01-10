@@ -8,9 +8,12 @@ import (
 )
 
 type Client struct {
-	// LocalAddr local address
-	// Format: <host>:<port>
-	LocalAddr string
+	// Host local host
+	// default: 127.0.0.1
+	Host string
+	// SIPPort SIP server port
+	// default: 5060
+	SIPPort int
 	// UserAgent SIP User-Agent
 	UserAgent string
 	// AudioCodecs audio codecs
@@ -24,16 +27,17 @@ type Client struct {
 	Logger *slog.Logger
 
 	// internal
-	localHost string
-
 	porter  *porter
 	ua      sipgo.DialogUA
 	dialogs sync.Map
 }
 
 func (c *Client) Run() error {
-	if c.LocalAddr == "" {
-		c.LocalAddr = "127.0.0.1:5060"
+	if c.Host == "" {
+		c.Host = "127.0.0.1"
+	}
+	if c.SIPPort == 0 {
+		c.SIPPort = 5060
 	}
 	if c.UserAgent == "" {
 		c.UserAgent = defaultUserAgent
@@ -51,12 +55,7 @@ func (c *Client) Run() error {
 		c.Logger = slog.Default()
 	}
 
-	lhost, lport, err := sip.ParseAddr(c.LocalAddr)
-	if err != nil {
-		return err
-	}
-	c.localHost = lhost
-
+	var err error
 	c.porter, err = newPorter(c.RtpPortMin, c.RtpPortMax)
 	if err != nil {
 		return err
@@ -68,7 +67,7 @@ func (c *Client) Run() error {
 	}
 	ua.TransactionLayer().OnRequest(c.onRequest)
 
-	client, err := sipgo.NewClient(ua, sipgo.WithClientHostname(lhost), sipgo.WithClientPort(lport))
+	client, err := sipgo.NewClient(ua, sipgo.WithClientHostname(c.Host), sipgo.WithClientPort(c.SIPPort))
 	if err != nil {
 		_ = ua.Close()
 		return err
@@ -76,7 +75,7 @@ func (c *Client) Run() error {
 
 	c.ua = sipgo.DialogUA{
 		Client:     client,
-		ContactHDR: sip.ContactHeader{Address: sip.Uri{User: c.UserAgent, Host: lhost, Port: lport}},
+		ContactHDR: sip.ContactHeader{Address: sip.Uri{User: c.UserAgent, Host: c.Host, Port: c.SIPPort}},
 	}
 
 	return nil

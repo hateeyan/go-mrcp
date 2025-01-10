@@ -61,7 +61,8 @@ func recognize(dialog *mrcp.DialogClient) error {
 
 func main() {
 	client := mrcp.Client{
-		LocalAddr: "10.9.232.246:5020",
+		Host:    "10.9.232.246",
+		SIPPort: 5020,
 	}
 
 	// start client

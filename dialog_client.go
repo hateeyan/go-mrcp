@@ -33,12 +33,12 @@ type DialogClient struct {
 
 func (c *Client) newDialog(resource Resource, handler DialogHandler, opts ...DialogClientOptionFunc) (*DialogClient, error) {
 	audioDesc := MediaDesc{
-		Host:   c.localHost,
+		Host:   c.Host,
 		Ptime:  20,
 		Codecs: c.AudioCodecs,
 	}
 	controlDesc := ControlDesc{
-		Host:           c.localHost,
+		Host:           c.Host,
 		Port:           9,
 		Proto:          ProtoTCP,
 		SetupType:      SetupActive,
@@ -65,7 +65,7 @@ func (c *Client) newDialog(resource Resource, handler DialogHandler, opts ...Dia
 		callId: pkg.RandString(10),
 		ldesc: Desc{
 			UserAgent:   c.UserAgent,
-			Host:        c.localHost,
+			Host:        c.Host,
 			AudioDesc:   audioDesc,
 			ControlDesc: controlDesc,
 		},

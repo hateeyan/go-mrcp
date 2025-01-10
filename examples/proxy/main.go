@@ -109,7 +109,8 @@ func (p *proxy) OnDialogCreate(ds *mrcp.DialogServer) (mrcp.DialogHandler, error
 
 func main() {
 	client := mrcp.Client{
-		LocalAddr:  "10.9.232.246:5080",
+		Host:       "10.9.232.246",
+		SIPPort:    5080,
 		RtpPortMin: 22000,
 		RtpPortMax: 23000,
 	}
