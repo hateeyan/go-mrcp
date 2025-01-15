@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
-	"github.com/hateeyan/go-mrcp/pkg"
 	"log/slog"
 )
 
@@ -24,8 +23,9 @@ type DialogServer struct {
 }
 
 func (s *Server) newDialog(session *sipgo.DialogServerSession) *DialogServer {
+	callId := session.InviteRequest.CallID().Value()
 	d := &DialogServer{
-		callId: session.InviteRequest.CallID().Value(),
+		callId: callId,
 		ldesc: Desc{
 			UserAgent: s.UserAgent,
 			Host:      s.Host,
@@ -44,10 +44,10 @@ func (s *Server) newDialog(session *sipgo.DialogServerSession) *DialogServer {
 		},
 		ss:      s,
 		session: session,
-		logger:  s.Logger,
+		logger:  s.Logger.With("callId", callId),
 	}
 	d.ctx, d.cancel = context.WithCancel(context.Background())
-	s.dialogs.Store(d.callId, d)
+	s.dialogs.Store(callId, d)
 	return d
 }
 
@@ -78,10 +78,6 @@ func (d *DialogServer) onInvite(req *sip.Request, tx sip.ServerTransaction) erro
 		return fmt.Errorf("unsupported resource type: %s", rdesc.ControlDesc.Resource)
 	}
 
-	d.channel = &Channel{
-		id:     ChannelId{Resource: rdesc.ControlDesc.Resource},
-		logger: d.logger,
-	}
 	if d.ss.Handler != nil {
 		d.handler, err = d.ss.Handler.OnDialogCreate(d)
 		if err != nil {
@@ -91,12 +87,7 @@ func (d *DialogServer) onInvite(req *sip.Request, tx sip.ServerTransaction) erro
 			return fmt.Errorf("OnDialogCreate callback failed: %v", err)
 		}
 	}
-	if d.channel.id.Id == "" {
-		d.channel.id.Id = pkg.RandString(10)
-	}
-	if d.handler != nil {
-		d.channel.handler = d.handler.OnChannelOpen(d.channel)
-	}
+	d.newChannel()
 	d.ss.channels.Store(d.channel.GetChannelId().Id, d.channel)
 
 	port, err := d.ss.porter.get()
@@ -114,7 +105,6 @@ func (d *DialogServer) onInvite(req *sip.Request, tx sip.ServerTransaction) erro
 		}
 		return err
 	}
-	d.ldesc.ControlDesc.ChannelId = d.channel.GetChannelId()
 	localSDP, err := d.ldesc.generateSDP()
 	if err != nil {
 		if err := d.session.Respond(sip.StatusInternalServerError, "Internal Server Error", nil); err != nil {
@@ -218,6 +208,7 @@ func (d *DialogServer) Close() error {
 	d.ss.dialogs.Delete(d.callId)
 	d.ss.channels.Delete(d.channel.GetChannelId().Id)
 
+	d.logger.Info("close dialog")
 	if d.handler != nil {
 		d.handler.OnClose()
 	}

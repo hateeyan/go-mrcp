@@ -9,7 +9,7 @@ import (
 func main() {
 	server := mrcp.Server{
 		Host:     "10.9.232.246",
-		SIPPort:  8060,
+		SIPPort:  5060,
 		MRCPPort: 1544,
 		Handler: mrcp.ServerHandlerFunc{
 			OnDialogCreateFunc: onDialogCreate,

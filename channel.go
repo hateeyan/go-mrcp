@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/hateeyan/go-mrcp/pkg"
 	"io"
 	"log/slog"
 	"net"
@@ -153,9 +154,10 @@ func (d *DialogClient) dialMRCPServer() error {
 		return err
 	}
 	d.channel = &Channel{
-		id:     d.rdesc.ControlDesc.ChannelId,
-		logger: d.logger,
+		id: d.rdesc.ControlDesc.ChannelId,
 	}
+	d.channel.logger = d.logger.With("channelId", d.channel.id.Id)
+	d.logger.Info("create new channel", "channel", d.channel.id.String())
 	if d.handler != nil {
 		d.channel.handler = d.handler.OnChannelOpen(d.channel)
 	}
@@ -168,6 +170,23 @@ func (d *DialogClient) dialMRCPServer() error {
 	}
 	go d.channel.conn.startReadMessage()
 	return nil
+}
+
+func (d *DialogServer) newChannel() {
+	if d.ldesc.ControlDesc.ChannelId.Id == "" {
+		d.ldesc.ControlDesc.ChannelId = ChannelId{
+			Id:       pkg.RandString(10),
+			Resource: d.rdesc.ControlDesc.Resource,
+		}
+	}
+	d.channel = &Channel{
+		id: d.ldesc.ControlDesc.ChannelId,
+	}
+	d.channel.logger = d.logger.With("channelId", d.channel.id.Id)
+	d.logger.Info("create new channel", "channel", d.channel.id.String())
+	if d.handler != nil {
+		d.channel.handler = d.handler.OnChannelOpen(d.channel)
+	}
 }
 
 func (c *Channel) NewRequest(method string) Message {
@@ -209,6 +228,7 @@ func (c *Channel) NewEvent(event, requestState string) Message {
 
 // TODO: check Channel inused
 func (c *Channel) SendMrcpMessage(msg Message) error {
+	c.logger.Info("send MRCP message", "type", msg.messageType.String())
 	return c.conn.writeMessage(msg)
 }
 
@@ -224,6 +244,7 @@ func (c *Channel) bound() bool {
 }
 
 func (c *Channel) onMessage(msg Message) {
+	c.logger.Info("receive MRCP message", "type", msg.messageType.String())
 	if c.handler != nil {
 		c.handler.OnMessage(c, msg)
 	}
@@ -238,5 +259,6 @@ func (c *Channel) Close() error {
 		return nil
 	}
 	c.closed = true
+	c.logger.Info("close channel")
 	return c.conn.Close()
 }

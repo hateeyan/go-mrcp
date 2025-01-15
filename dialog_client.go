@@ -61,8 +61,9 @@ func (c *Client) newDialog(resource Resource, handler DialogHandler, opts ...Dia
 	}
 	audioDesc.Port = int(port)
 
+	callId := pkg.RandString(12)
 	d := &DialogClient{
-		callId: pkg.RandString(10),
+		callId: callId,
 		ldesc: Desc{
 			UserAgent:   c.UserAgent,
 			Host:        c.Host,
@@ -71,7 +72,7 @@ func (c *Client) newDialog(resource Resource, handler DialogHandler, opts ...Dia
 		},
 		sc:      c,
 		handler: handler,
-		logger:  c.Logger,
+		logger:  c.Logger.With("callId", callId),
 	}
 
 	for _, fn := range opts {
@@ -176,6 +177,7 @@ func (d *DialogClient) Close() error {
 	d.sc.porter.free(uint16(d.ldesc.AudioDesc.Port))
 	d.sc.dialogs.Delete(d.callId)
 
+	d.logger.Info("close dialog")
 	if d.handler != nil {
 		d.handler.OnClose()
 	}

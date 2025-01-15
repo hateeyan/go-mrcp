@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/emiago/sipgo v0.27.1
-	github.com/pion/sdp/v3 v3.0.10-0.20241217201333-d518314e8988
+	github.com/pion/sdp/v3 v3.0.10
 )
 
 require (

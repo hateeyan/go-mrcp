@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -122,6 +123,12 @@ func (d *DialogServer) newMedia() error {
 }
 
 func (m *Media) start() error {
+	m.logger.Info(
+		"open media",
+		"local", m.laudioDesc.Host+":"+strconv.Itoa(m.laudioDesc.Port),
+		"remote", m.remote.String(),
+		"codec", m.audioCodec.Name,
+	)
 	var err error
 	m.conn, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(m.laudioDesc.Host), Port: m.laudioDesc.Port})
 	if err != nil {
@@ -228,6 +235,7 @@ func (m *Media) Close() error {
 		return nil
 	}
 	m.closed = true
+	m.logger.Info("close media")
 	if m.conn != nil {
 		_ = m.conn.Close()
 	}

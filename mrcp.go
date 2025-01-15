@@ -138,6 +138,19 @@ const (
 	MessageTypeEvent
 )
 
+func (m MessageType) String() string {
+	switch m {
+	case MessageTypeRequest:
+		return "request"
+	case MessageTypeResponse:
+		return "response"
+	case MessageTypeEvent:
+		return "event"
+	default:
+		return "unknown"
+	}
+}
+
 type Message struct {
 	messageType MessageType
 	length      int
