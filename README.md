@@ -23,4 +23,5 @@ A pure Go MRCPv2 library.
 
 - client [examples/client](examples/client) 
 - server [examples/server](examples/server) 
+- server integration with Tencent Cloud ASR / TTS [examples/server-tencent](examples/server-tencent) 
 - proxy [examples/proxy](examples/proxy) 
