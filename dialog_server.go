@@ -183,9 +183,10 @@ func (d *DialogServer) handleState(s sip.DialogState) {
 	}
 }
 
-func (d *DialogServer) GetChannel() *Channel { return d.channel }
-func (d *DialogServer) GetLocalDesc() *Desc  { return &d.ldesc }
-func (d *DialogServer) GetRemoteDesc() *Desc { return &d.rdesc }
+func (d *DialogServer) GetChannel() *Channel  { return d.channel }
+func (d *DialogServer) GetLocalDesc() *Desc   { return &d.ldesc }
+func (d *DialogServer) GetRemoteDesc() *Desc  { return &d.rdesc }
+func (d *DialogServer) GetResource() Resource { return d.rdesc.ControlDesc.Resource }
 
 func (d *DialogServer) Close() error {
 	if d.closed {
@@ -195,7 +196,6 @@ func (d *DialogServer) Close() error {
 
 	d.cancel()
 	_ = d.media.Close()
-	_ = d.channel.Close()
 	if d.session != nil {
 		if d.session.LoadState() == sip.DialogStateConfirmed {
 			if err := d.session.Bye(context.Background()); err != nil {
@@ -206,7 +206,10 @@ func (d *DialogServer) Close() error {
 	}
 	d.ss.porter.free(uint16(d.ldesc.AudioDesc.Port))
 	d.ss.dialogs.Delete(d.callId)
-	d.ss.channels.Delete(d.channel.GetChannelId().Id)
+	if d.channel != nil {
+		_ = d.channel.Close()
+		d.ss.channels.Delete(d.channel.GetChannelId().Id)
+	}
 
 	d.logger.Info("close dialog")
 	if d.handler != nil {

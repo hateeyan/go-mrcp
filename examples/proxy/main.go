@@ -86,7 +86,7 @@ func (p *proxy) OnDialogCreate(ds *mrcp.DialogServer) (mrcp.DialogHandler, error
 	var err error
 	ps.dc, err = p.client.Dial(
 		"10.9.232.246:8060",
-		ds.GetRemoteDesc().ControlDesc.Resource,
+		ds.GetResource(),
 		mrcp.DialogHandlerFunc{
 			OnMediaOpenFunc:   ps.onDialogClientMediaOpen,
 			OnChannelOpenFunc: ps.onDialogClientChannelOpen,
