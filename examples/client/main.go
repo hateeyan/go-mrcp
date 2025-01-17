@@ -140,7 +140,7 @@ func readRTPPacket(m *mrcp.Media) ([]byte, bool) {
 
 	// rtp payload
 	// pcm to pcmu
-	if err := pcm.LinearToULaw(pcmData, rtpData[12:]); err != nil {
+	if err := pcm.LinearToMuLaw(pcmData, rtpData[12:]); err != nil {
 		fmt.Println("failed to encode to pcmu:", err)
 		return nil, false
 	}

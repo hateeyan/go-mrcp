@@ -1,6 +1,8 @@
 package pcm
 
-import "errors"
+import (
+	"errors"
+)
 
 const cBias = 0x84
 const cClip = 32635
@@ -24,7 +26,7 @@ var muLawCompressTable = [256]byte{
 	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
 }
 
-func linearToULaw(sample int16) byte {
+func linearToMuLaw(sample int16) byte {
 	sign := byte(sample>>8) & 0x80
 	if sign != 0 {
 		sample = -sample
@@ -43,12 +45,12 @@ func linearToULaw(sample int16) byte {
 	return compressedByte
 }
 
-func LinearToULaw(samples []byte, ulaws []byte) error {
-	if len(samples) != 2*len(ulaws) {
-		return errors.New("data size mismatch")
+func LinearToMuLaw(samples []byte, mulaws []byte) error {
+	if len(samples) > 2*len(mulaws) {
+		return errors.New("data size too small")
 	}
 	for i := 0; i < len(samples); i += 2 {
-		ulaws[i/2] = linearToULaw(int16(samples[i]) | int16(samples[i+1])<<8)
+		mulaws[i/2] = linearToMuLaw(int16(samples[i]) | int16(samples[i+1])<<8)
 	}
 	return nil
 }
@@ -95,8 +97,8 @@ func linearToALaw(sample int16) byte {
 }
 
 func LinearToALaw(samples []byte, alaws []byte) error {
-	if len(samples) != 2*len(alaws) {
-		return errors.New("data size mismatch")
+	if len(samples) > 2*len(alaws) {
+		return errors.New("data size too small")
 	}
 	for i := 0; i < len(samples); i += 2 {
 		alaws[i/2] = linearToALaw(int16(samples[i]) | int16(samples[i+1])<<8)
@@ -139,7 +141,17 @@ var muLawDecompressTable = [256]int16{
 	56, 48, 40, 32, 24, 16, 8, 0,
 }
 
-func muLawToLinear(ulaw byte) int16 { return muLawDecompressTable[ulaw] }
+func MuLawToLiner(mulaws []byte, pcms []byte) error {
+	if len(pcms) < 2*len(mulaws) {
+		return errors.New("data size too small")
+	}
+	for i := 0; i < len(mulaws); i++ {
+		pcm := muLawDecompressTable[mulaws[i]]
+		pcms[2*i] = byte(pcm)
+		pcms[2*i+1] = byte(pcm >> 8)
+	}
+	return nil
+}
 
 var aLawDecompressTable = [256]int16{
 	-5504, -5248, -6016, -5760, -4480, -4224, -4992, -4736,
@@ -176,4 +188,14 @@ var aLawDecompressTable = [256]int16{
 	944, 912, 1008, 976, 816, 784, 880, 848,
 }
 
-func aLawToLinear(alaw byte) int16 { return aLawDecompressTable[alaw] }
+func ALawToLiner(alaws []byte, pcms []byte) error {
+	if len(pcms) < 2*len(alaws) {
+		return errors.New("data size too small")
+	}
+	for i := 0; i < len(alaws); i++ {
+		pcm := aLawDecompressTable[alaws[i]]
+		pcms[2*i] = byte(pcm)
+		pcms[2*i+1] = byte(pcm >> 8)
+	}
+	return nil
+}
